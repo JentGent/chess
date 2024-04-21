@@ -11,17 +11,15 @@ SAVE_PERIOD = 100 # checkpoint every SAVE_PERIOD batches
 ROOT_DIR = Path(__file__).parent
 
 def latest_ckp(best = False):
-    ckp_dir = ROOT_DIR / "checkpoints" / "best" if best else ROOT_DIR / "checkpoints"
-    existing_ckps = [int(x.stem.split("_")[-1]) for x in ckp_dir.glob("checkpoint_*.tar") if x.is_file()]
+    ckp_dir = ROOT_DIR / "checkpoints"
+    existing_ckps = [int(x.stem.split("_")[-1]) for x in ckp_dir.glob("best_*.tar" if best else "*.tar") if x.is_file()]
     return -1 if not existing_ckps else max(existing_ckps)
 
 def save_ckp(state, is_best):
     ckp_dir = ROOT_DIR / "checkpoints"
     next_ckp = latest_ckp() + 1
-    checkpoint_path = ckp_dir / f"checkpoint_{next_ckp}.tar"
+    checkpoint_path = ckp_dir / (f"best_{next_ckp}.tar" if is_best else f"checkpoint_{next_ckp}.tar")
     torch.save(state, checkpoint_path)
-    if is_best:
-        shutil.copyfile(checkpoint_path, ckp_dir / "best" / f"checkpoint_{next_ckp}.tar")
 
 def load_ckp(ckp_path, model, optimizer):
     ckp = torch.load(ckp_path)
@@ -53,7 +51,7 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(evaluate.parameters(), lr = 0.001)
 
     latest_best = latest_ckp(best = True)
-    best_val = float("inf") if latest_best == -1 else load_ckp(ROOT_DIR / "checkpoints" / "best" / f"checkpoint_{latest_best}.tar", evaluate, optimizer)["val"]
+    best_val = float("inf") if latest_best == -1 else load_ckp(ROOT_DIR / "checkpoints" / "best" / f"checkpoint_{latest_best}.tar", evaluate, optimizer)[3]
     
     loss_fn = torch.nn.MSELoss()
     running_loss = 0
@@ -69,7 +67,8 @@ if __name__ == "__main__":
         if (i + 1) % SAVE_PERIOD == 0:
             loss = running_loss / SAVE_PERIOD
             val = validate(evaluate, test_loader, loss_fn)
-            print(val)
+            print(f"Loss: {loss}")
+            print(f"Val: {val}")
             save_ckp({ "state_dict": evaluate.state_dict(), "optimizer": optimizer.state_dict(), "loss": loss, "val": val }, val < best_val + 0.1)
             
             if val < best_val + 0.1: best_val = val
