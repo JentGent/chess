@@ -51,7 +51,7 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(evaluate.parameters(), lr = 0.001)
 
     latest_best = latest_ckp(best = True)
-    best_val = float("inf") if latest_best == -1 else load_ckp(ROOT_DIR / "checkpoints" / "best" / f"checkpoint_{latest_best}.tar", evaluate, optimizer)[3]
+    best_val = float("inf") if latest_best == -1 else load_ckp(ROOT_DIR / "checkpoints" / f"best_{latest_best}.tar", evaluate, optimizer)[3]
     
     loss_fn = torch.nn.MSELoss()
     running_loss = 0
@@ -72,5 +72,5 @@ if __name__ == "__main__":
             save_ckp({ "state_dict": evaluate.state_dict(), "optimizer": optimizer.state_dict(), "loss": loss, "val": val }, val < best_val + 0.1)
             
             if val < best_val + 0.1: best_val = val
-            else: load_ckp(ROOT_DIR / "checkpoints" / "best" / f"checkpoint_{latest_ckp(best = True)}.tar", evaluate, optimizer)
+            else: load_ckp(ROOT_DIR / "checkpoints" / f"best_{latest_ckp(best = True)}.tar", evaluate, optimizer)
             running_loss = 0
