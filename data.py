@@ -27,7 +27,7 @@ class Incremental(Dataset):
         self.len = num_samples
 
     def __getitem__(self, index):
-        sample = pd.read_csv(self.path, skiprows = index + 1, nrows = 1, names=["FEN", "eval"])
+        sample = pd.read_csv(self.path, skiprows = index + 1, nrows = 1, names = ["FEN", "eval"])
         return torch.tensor(FEN_to_tiles(sample["FEN"][0])), parse_eval(sample["eval"][0]).float()
 
     def __len__(self):

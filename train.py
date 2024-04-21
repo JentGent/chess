@@ -5,8 +5,8 @@ import shutil
 from pathlib import Path
 from data import Incremental
 
-BATCH_SIZE = 32
-VAL_SIZE = 8
+BATCH_SIZE = 32 # number of samples in each batch
+VAL_SIZE = 32 # number of samples to use for validation
 SAVE_PERIOD = 100 # checkpoint every SAVE_PERIOD batches
 ROOT_DIR = Path(__file__).parent
 
@@ -27,7 +27,16 @@ def load_ckp(ckp_path, model, optimizer):
     ckp = torch.load(ckp_path)
     model.load_state_dict(ckp["state_dict"])
     optimizer.load_state_dict(ckp["optimizer"])
-    return model, optimizer
+    return model, optimizer, ckp["loss"], ckp["val"]
+
+def validate(model: model.Evaluate, val_loader: DataLoader, loss_fn):
+    model.eval()
+    with torch.no_grad():
+        running_loss = 0
+        for i, (states, evals) in enumerate(val_loader):
+            running_loss += loss_fn(model(states.to(DEVICE)), evals.view(VAL_SIZE, 1).to(DEVICE)).item()
+            if i > VAL_SIZE: return running_loss / VAL_SIZE
+        return running_loss / VAL_SIZE
 
 if __name__ == "__main__":
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -44,7 +53,7 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(evaluate.parameters(), lr = 0.001)
 
     latest_best = latest_ckp(best = True)
-    best_loss = float("inf") if latest_best == -1 else load_ckp(ROOT_DIR / "checkpoints" / "best" / f"checkpoint_{latest_best}.tar", evaluate, optimizer)
+    best_val = float("inf") if latest_best == -1 else load_ckp(ROOT_DIR / "checkpoints" / "best" / f"checkpoint_{latest_best}.tar", evaluate, optimizer)["val"]
     
     loss_fn = torch.nn.MSELoss()
     running_loss = 0
@@ -58,10 +67,11 @@ if __name__ == "__main__":
         optimizer.step()
         running_loss += loss.item()
         if (i + 1) % SAVE_PERIOD == 0:
-            last_loss = running_loss / SAVE_PERIOD
-            print(last_loss)
-            save_ckp({ "state_dict": evaluate.state_dict(), "optimizer": optimizer.state_dict(), "loss": last_loss }, last_loss < best_loss)
+            loss = running_loss / SAVE_PERIOD
+            val = validate(evaluate, test_loader, loss_fn)
+            print(val)
+            save_ckp({ "state_dict": evaluate.state_dict(), "optimizer": optimizer.state_dict(), "loss": loss, "val": val }, val < best_val + 0.1)
             
-            if last_loss < best_loss: best_loss = last_loss
+            if val < best_val + 0.1: best_val = val
             else: load_ckp(ROOT_DIR / "checkpoints" / "best" / f"checkpoint_{latest_ckp(best = True)}.tar", evaluate, optimizer)
             running_loss = 0
