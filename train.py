@@ -6,6 +6,7 @@ from pathlib import Path
 from data import Incremental
 
 BATCH_SIZE = 32
+VAL_SIZE = 8
 SAVE_PERIOD = 100 # checkpoint every SAVE_PERIOD batches
 ROOT_DIR = Path(__file__).parent
 
@@ -35,9 +36,9 @@ if __name__ == "__main__":
     train_size = 12954834
     test_size = 1000273
     train_dataset = Incremental(ROOT_DIR / "dataset" / "chessData.csv", num_samples = train_size)
-    # test_dataset = Incremental(ROOT_DIR / "dataset" / "random_evals.csv", num_samples = test_size)
-    train_loader = DataLoader(train_dataset, batch_size = BATCH_SIZE, shuffle = True)
-    # test_loader = DataLoader(test_dataset, batch_size = 32, shuffle = True)
+    test_dataset = Incremental(ROOT_DIR / "dataset" / "random_evals.csv", num_samples = test_size)
+    train_loader = DataLoader(train_dataset, batch_size = BATCH_SIZE, shuffle = False)
+    test_loader = DataLoader(test_dataset, batch_size = VAL_SIZE, shuffle = False)
 
     evaluate = model.Evaluate().to(DEVICE)
     optimizer = torch.optim.Adam(evaluate.parameters(), lr = 0.001)
@@ -49,17 +50,18 @@ if __name__ == "__main__":
     running_loss = 0
     for i, (states, evals) in enumerate(train_loader):
         if i % SAVE_PERIOD == 0:
-            print(f"Batch {i}:")
+            print(f"Batch {i}")
         optimizer.zero_grad()
         predictions = evaluate(states.to(DEVICE))
         loss = loss_fn(predictions, evals.view(BATCH_SIZE, 1).to(DEVICE))
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
-        if i % SAVE_PERIOD == 0:
+        if (i + 1) % SAVE_PERIOD == 0:
             last_loss = running_loss / SAVE_PERIOD
             print(last_loss)
             save_ckp({ "state_dict": evaluate.state_dict(), "optimizer": optimizer.state_dict(), "loss": last_loss }, last_loss < best_loss)
+            
             if last_loss < best_loss: best_loss = last_loss
             else: load_ckp(ROOT_DIR / "checkpoints" / "best" / f"checkpoint_{latest_ckp(best = True)}.tar", evaluate, optimizer)
             running_loss = 0
