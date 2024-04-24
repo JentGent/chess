@@ -11,9 +11,13 @@ NUM_SYMBOLS = len(SYMBOL_TO_INDEX)
 ROOT_DIR = Path(__file__).parent
 
 def parse_eval(eval):
-    if isinstance(eval, str):
-        return torch.tensor(1 if eval[1] == '+' else -1)
-    return torch.tanh(torch.tensor(eval * 0.01))
+    try:
+        if eval[0] == "#": return torch.tensor(1 if eval[1] == '+' else -1)
+        if eval == "0": return torch.tensor(0)
+        return torch.tanh(torch.tensor(float(eval) * 0.01))
+    except:
+        print(eval)
+        raise
 
 def FEN_to_tiles(fen: str):
     board = chess.Board(fen)
@@ -45,4 +49,17 @@ class Incremental(Dataset):
 
     def __len__(self):
         return self.len
+
+class DatasetFromPath(Dataset):
+    def __init__(self, path):
+        self.path = path
+        self.df = pd.read_csv(path)
+
+    def __getitem__(self, index):
+        return torch.tensor(FEN_to_tiles(self.df["FEN"][index])), parse_eval(self.df["Evaluation"][index]).float()
+
+    def __len__(self):
+        return len(self.df)
+
+
 
